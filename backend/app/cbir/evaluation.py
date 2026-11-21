@@ -4,12 +4,9 @@ Retrieval quality evaluation metrics.
 Precision@K and Recall@K using dataset category labels as ground truth.
 """
 
-from typing import Dict, List
-
-
 def precision_at_k(retrieved_ids, relevant_category, all_images_categories, k=25):
     """
-    Precision@K = (# retrieved images whose category == relevant_category) / K
+    Precision@K = (# retrieved images whose category == relevant_category) / nombre de résultats retournés jusqu’au rang K
 
     Parameters
     ----------
@@ -34,7 +31,7 @@ def precision_at_k(retrieved_ids, relevant_category, all_images_categories, k=25
         1 for iid in top_k
         if all_images_categories.get(iid) == relevant_category
     )
-    return hits / k
+    return hits / len(top_k)
 
 
 def recall_at_k(retrieved_ids, relevant_category, all_images_categories, total_in_category, k=25):

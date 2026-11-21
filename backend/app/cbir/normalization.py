@@ -1,15 +1,7 @@
-"""
-Feature normalization using MinMaxScaler.
+"""Min-max scaling shared by indexed and query descriptors."""
 
-CRITICAL: The scaler is fitted ONCE on the full dataset and then
-persisted alongside the index.  Query images must be transformed
-with the SAME fitted scaler — never re-fit on a single query.
-"""
-
-import os
 import logging
 import numpy as np
-import joblib
 from sklearn.preprocessing import MinMaxScaler
 
 logger = logging.getLogger(__name__)
@@ -48,7 +40,7 @@ class FeatureNormalizer:
 
         Returns
         -------
-        np.ndarray with the same shape, values in [0, 1].
+        np.ndarray with the same shape, with [0, 1] for features inside the fitted range.
         """
         if not self.is_fitted:
             raise RuntimeError("Normalizer has not been fitted yet.")
@@ -66,18 +58,3 @@ class FeatureNormalizer:
         """Fit on *features_matrix* and return the transformed version."""
         self.fit(features_matrix)
         return self.transform(features_matrix)
-
-    # ------------------------------------------------------------------
-    def save(self, path):
-        """Persist the fitted scaler to disk using joblib."""
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        joblib.dump({'scaler': self.scaler, 'is_fitted': self.is_fitted}, path)
-        logger.info("Normalizer saved to %s", path)
-
-    # ------------------------------------------------------------------
-    def load(self, path):
-        """Load a previously saved scaler from disk."""
-        data = joblib.load(path)
-        self.scaler = data['scaler']
-        self.is_fitted = data['is_fitted']
-        logger.info("Normalizer loaded from %s", path)

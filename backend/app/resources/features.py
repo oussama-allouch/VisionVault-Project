@@ -2,18 +2,20 @@
 
 import os
 import numpy as np
-from flask import Blueprint
+from flask import Blueprint, request
 from flask_jwt_extended import jwt_required
 from flask_restful import Api, Resource
 
 from app.models.image import Image
+from app.extensions import db
+from app.utils.helpers import valid_id_list
 
 features_bp = Blueprint('features', __name__)
 api = Api(features_bp)
 
 
 def _get_image_or_404(image_id):
-    img = Image.query.get(image_id)
+    img = db.session.get(Image, image_id)
     if not img:
         return None, ({'error': 'Not Found', 'message': 'Image not found.', 'status_code': 404}, 404)
     if not os.path.exists(img.stored_path):
@@ -39,21 +41,36 @@ def _serialize(obj):
 class FeaturesResource(Resource):
     @jwt_required()
     def get(self, image_id):
-        img, err = _get_image_or_404(image_id)
-        if err:
-            return err
-        try:
-            from app.cbir.feature_extractor import extract_features_with_details, FEATURE_GROUPS
-            details = extract_features_with_details(img.stored_path)
-            result = _serialize(details)
-            # Remove heavy non-serializable items
-            result.pop('lbp', None)
-            if 'glcm' in result and 'glcm_matrix' in result.get('glcm', {}):
-                result['glcm'].pop('glcm_matrix', None)
-            result['feature_groups'] = FEATURE_GROUPS
-            return {'image_id': image_id, 'features': result}, 200
-        except Exception as e:
-            return {'error': 'Internal Server Error', 'message': str(e), 'status_code': 500}, 500
+        return features_for_image(image_id)
+
+
+def features_for_image(image_id):
+    image, error = _get_image_or_404(image_id)
+    if error:
+        return error
+    from app.cbir.feature_extractor import extract_features_with_details, FEATURE_GROUPS
+    try:
+        details = extract_features_with_details(image.stored_path)
+    except (OSError, ValueError):
+        return {'image_id': image_id, 'message': 'Image illisible.'}, 422
+    details['glcm'].pop('glcm_matrix', None)
+    details['lbp'].pop('lbp_image', None)
+    details['feature_groups'] = FEATURE_GROUPS
+    return {'image_id': image_id, 'features': _serialize(details)}, 200
+
+
+class BatchFeaturesResource(Resource):
+    @jwt_required()
+    def post(self):
+        data = request.get_json(silent=True)
+        image_ids = data.get('ids') if isinstance(data, dict) else None
+        if not valid_id_list(image_ids, limit=32):
+            return {'message': 'Fournissez de 1 à 32 identifiants distincts.'}, 400
+        items = []
+        for image_id in image_ids:
+            result, status = features_for_image(image_id)
+            items.append({**result, 'image_id': image_id, 'status': status})
+        return {'items': items}
 
 
 class ColorHistogramResource(Resource):
@@ -138,3 +155,5 @@ api.add_resource(ColorMomentsResource, '/<int:image_id>/color-moments')
 api.add_resource(DominantColorsResource, '/<int:image_id>/dominant-colors')
 api.add_resource(GLCMResource, '/<int:image_id>/glcm')
 api.add_resource(LBPResource, '/<int:image_id>/lbp')
+
+api.add_resource(BatchFeaturesResource, '/features/batch')

@@ -8,7 +8,7 @@ class CategoryService:
     @staticmethod
     def create_category(name: str, parent_id=None):
         if parent_id is not None:
-            parent = Category.query.get(parent_id)
+            parent = db.session.get(Category, parent_id)
             if not parent:
                 return {'error': 'Not Found', 'message': 'Parent category not found.', 'status_code': 404}, 404
 

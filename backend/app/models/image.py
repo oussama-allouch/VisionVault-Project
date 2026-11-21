@@ -6,6 +6,7 @@ from app.extensions import db
 
 class Image(db.Model):
     __tablename__ = 'images'
+    __table_args__ = {'sqlite_autoincrement': True}
 
     id = db.Column(db.Integer, primary_key=True)
     filename = db.Column(db.String(255), nullable=False)
@@ -39,46 +40,8 @@ class Image(db.Model):
     )
 
     def to_dict(self):
-        # Build relative paths for frontend URL construction
-        thumbnail_url = None
-        image_url = None
-
-        if self.thumbnail_path:
-            import os
-            from flask import current_app
-            thumb_folder = current_app.config.get('THUMBNAIL_FOLDER') if current_app else None
-            if thumb_folder and os.path.exists(thumb_folder):
-                try:
-                    rel = os.path.relpath(self.thumbnail_path, thumb_folder).replace('\\', '/')
-                    thumbnail_url = f'/api/v1/images/static/thumbnails/{rel}'
-                except ValueError:
-                    thumbnail_url = f'/api/v1/images/static/thumbnails/{os.path.basename(self.thumbnail_path)}'
-            else:
-                thumbnail_url = f'/api/v1/images/static/thumbnails/{os.path.basename(self.thumbnail_path)}'
-
-        if self.stored_path:
-            import os
-            from flask import current_app
-            if self.source_type == 'dataset':
-                ds_folder = current_app.config.get('DATASET_PATH') if current_app else None
-                if ds_folder and os.path.exists(ds_folder):
-                    try:
-                        rel = os.path.relpath(self.stored_path, ds_folder).replace('\\', '/')
-                        image_url = f'/api/v1/images/static/images/{rel}'
-                    except ValueError:
-                        image_url = f'/api/v1/images/static/images/{os.path.basename(self.stored_path)}'
-                else:
-                    image_url = f'/api/v1/images/static/images/{os.path.basename(self.stored_path)}'
-            else:
-                upload_folder = current_app.config.get('UPLOAD_FOLDER') if current_app else None
-                if upload_folder and os.path.exists(upload_folder):
-                    try:
-                        rel = os.path.relpath(self.stored_path, upload_folder).replace('\\', '/')
-                        image_url = f'/api/v1/images/static/images/{rel}'
-                    except ValueError:
-                        image_url = f'/api/v1/images/static/images/{os.path.basename(self.stored_path)}'
-                else:
-                    image_url = f'/api/v1/images/static/images/{os.path.basename(self.stored_path)}'
+        thumbnail_url = f'/api/v1/images/{self.id}/media/thumbnail' if self.thumbnail_path else None
+        image_url = f'/api/v1/images/{self.id}/media/original' if self.stored_path else None
 
         return {
             'id': self.id,

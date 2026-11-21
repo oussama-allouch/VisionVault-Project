@@ -11,6 +11,7 @@ import numpy as np
 import cv2
 from scipy.stats import skew
 from sklearn.cluster import KMeans
+from .image_input import read_bgr
 
 
 # ---------------------------------------------------------------------------
@@ -44,9 +45,7 @@ def extract_color_histogram(image_path, h_bins=16, s_bins=16, v_bins=16):
         'params'    : dict
     """
     # Read image
-    img = cv2.imread(image_path)
-    if img is None:
-        raise ValueError(f"Cannot read image: {image_path}")
+    img = read_bgr(image_path)
 
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
@@ -95,9 +94,7 @@ def extract_color_moments(image_path):
         'moments' : np.ndarray of shape (9,)  — [H_mean, H_std, H_skew, S_…, V_…]
         'details' : dict keyed by channel name
     """
-    img = cv2.imread(image_path)
-    if img is None:
-        raise ValueError(f"Cannot read image: {image_path}")
+    img = read_bgr(image_path)
 
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV).astype(np.float64)
 
@@ -107,7 +104,7 @@ def extract_color_moments(image_path):
         channel = hsv[:, :, idx].flatten()
         m = channel.mean()
         s = channel.std()
-        sk = float(skew(channel, bias=True))  # population skewness
+        sk = float(skew(channel, bias=True)) if s else 0.0  # population skewness
         moments.extend([m, s, sk])
         details[name] = {'mean': m, 'std': s, 'skewness': sk}
 
@@ -137,9 +134,7 @@ def extract_dominant_colors(image_path, n_colors=5):
         'colors'          : list of dicts with 'rgb', 'hex', 'percentage'
         'feature_vector'  : np.ndarray of shape (n_colors * 4,)
     """
-    img = cv2.imread(image_path)
-    if img is None:
-        raise ValueError(f"Cannot read image: {image_path}")
+    img = read_bgr(image_path)
 
     rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     pixels = rgb.reshape(-1, 3).astype(np.float64)
@@ -151,13 +146,14 @@ def extract_dominant_colors(image_path, n_colors=5):
         indices = rng.choice(len(pixels), max_pixels, replace=False)
         pixels = pixels[indices]
 
-    km = KMeans(n_clusters=n_colors, random_state=42, n_init=1)
+    distinct = len(np.unique(pixels, axis=0))
+    km = KMeans(n_clusters=min(n_colors, distinct), random_state=42, n_init=1)
     km.fit(pixels)
 
     # Count pixels per cluster and sort descending
     labels, counts = np.unique(km.labels_, return_counts=True)
     total = counts.sum()
-    order = np.argsort(-counts)
+    order = sorted(range(len(labels)), key=lambda i: (-counts[i], *km.cluster_centers_[labels[i]]))
 
     colors_list = []
     feature_parts = []
@@ -172,6 +168,7 @@ def extract_dominant_colors(image_path, n_colors=5):
         })
         feature_parts.extend([center[0] / 255.0, center[1] / 255.0, center[2] / 255.0, pct])
 
+    feature_parts.extend([0.0] * (n_colors * 4 - len(feature_parts)))
     return {
         'colors': colors_list,
         'feature_vector': np.array(feature_parts, dtype=np.float64),  # (20,)

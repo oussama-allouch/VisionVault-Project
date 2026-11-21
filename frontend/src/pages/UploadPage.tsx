@@ -21,7 +21,7 @@ export default function UploadPage() {
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault(); setDragOver(false)
-    const dropped = Array.from(e.dataTransfer.files).filter(f => /\.(jpe?g|png|webp|bmp|tiff?)$/i.test(f.name))
+    const dropped = Array.from(e.dataTransfer.files).filter(f => /\.(jpe?g|png|webp|bmp|gif|tiff)$/i.test(f.name))
     setFiles(prev => [...prev, ...dropped])
   }, [])
 
@@ -34,19 +34,24 @@ export default function UploadPage() {
   const handleUpload = async () => {
     if (files.length === 0) return
     setUploading(true); setResults([])
-    const res: typeof results = []
-    for (const file of files) {
-      try {
-        await imageService.upload(file, categoryId)
-        res.push({ name: file.name, ok: true })
-      } catch (e: any) {
-        res.push({ name: file.name, ok: false, msg: e?.response?.data?.message || 'Erreur' })
+    let res: typeof results
+    try {
+      if (files.length === 1) {
+        await imageService.upload(files[0], categoryId)
+        res = [{ name: files[0].name, ok: true }]
+      } else {
+        const data = await imageService.bulkUpload(files, categoryId)
+        res = data.uploads.map(item => ({
+          name: item.filename, ok: item.status === 201, msg: item.result.message,
+        }))
       }
+    } catch {
+      res = files.map(file => ({ name: file.name, ok: false, msg: 'Échec de l’envoi. Vérifiez le format et la limite de 16 Mio.' }))
     }
     setResults(res); setUploading(false)
     const ok = res.filter(r => r.ok).length
     if (ok > 0) toast.success(`${ok} image(s) téléversée(s) avec succès.`)
-    if (ok === files.length) setFiles([])
+    setFiles(files.filter((_, i) => !res[i]?.ok))
   }
 
   return (
@@ -63,14 +68,14 @@ export default function UploadPage() {
           Parcourir les fichiers
           <input type="file" multiple accept="image/*" onChange={handleSelect} className="hidden" />
         </label>
-        <p className="text-xs text-gray-400 mt-3">Formats acceptés : JPEG, PNG, WebP, BMP, TIFF</p>
+        <p className="text-xs text-gray-400 mt-3">Formats acceptés : JPEG, PNG, WebP, BMP, GIF, TIFF</p>
       </div>
 
       {/* Category + Upload */}
       {files.length > 0 && (
         <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4 space-y-4">
           <div className="flex items-center gap-3">
-            <select value={categoryId ?? ''} onChange={e => setCategoryId(e.target.value ? Number(e.target.value) : undefined)}
+            <select aria-label="Catégorie de destination" value={categoryId ?? ''} onChange={e => setCategoryId(e.target.value ? Number(e.target.value) : undefined)}
               className="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white">
               <option value="">Pas de catégorie</option>
               {flatCats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
