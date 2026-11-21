@@ -1,0 +1,170 @@
+import { useState, useEffect } from 'react'
+import { BarChart3, Image, FolderOpen, Search, Database, Info, Clock } from 'lucide-react'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
+import { analyticsService } from '../services/analyticsService'
+import type { AnalyticsOverview } from '../types'
+import { formatDate, formatDuration } from '../utils/format'
+
+const COLORS = ['#6366f1', '#8b5cf6', '#a78bfa', '#c4b5fd', '#818cf8', '#6d28d9', '#7c3aed', '#4f46e5', '#4338ca', '#3730a3',
+  '#a855f7', '#9333ea', '#7e22ce', '#6b21a8', '#581c87', '#312e81', '#5b21b6', '#4c1d95', '#e879f9', '#d946ef']
+
+export default function AnalyticsPage() {
+  const [data, setData] = useState<AnalyticsOverview | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    analyticsService.overview().then(setData).catch(console.error).finally(() => setLoading(false))
+  }, [])
+
+  if (loading) return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" /></div>
+
+  const stats = [
+    { label: 'Images indexées', value: data?.total_images || 0, icon: Image, color: 'from-indigo-500 to-indigo-600' },
+    { label: 'Catégories', value: data?.categories || 0, icon: FolderOpen, color: 'from-violet-500 to-violet-600' },
+    { label: 'Recherches effectuées', value: data?.searches || 0, icon: Search, color: 'from-purple-500 to-purple-600' },
+  ]
+
+  const indexPct = data?.index_status.total ? (data.index_status.indexed / data.index_status.total * 100) : 0
+
+  // Category distribution for bar chart
+  const catBarData = data?.category_distribution?.map(c => ({
+    name: c.category_name.length > 12 ? c.category_name.slice(0, 12) + '…' : c.category_name,
+    fullName: c.category_name,
+    images: c.image_count,
+  })) || []
+
+  return (
+    <div className="space-y-8">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+          <BarChart3 className="w-7 h-7 text-indigo-500" /> Analytiques CBIR
+        </h1>
+        <p className="text-gray-500 dark:text-gray-400 mt-1">Statistiques et évaluation du système de recherche</p>
+      </div>
+
+      {/* Stats cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {stats.map(({ label, value, icon: Icon, color }) => (
+          <div key={label} className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-5 shadow-sm">
+            <div className="flex items-center gap-4">
+              <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${color} flex items-center justify-center`}>
+                <Icon className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{value.toLocaleString()}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{label}</p>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Index Status */}
+      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-6 shadow-sm">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+          <Database className="w-5 h-5 text-indigo-500" /> État de l'index CBIR
+        </h2>
+        <div className="space-y-3">
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-500">Images indexées</span>
+            <span className="font-medium text-gray-900 dark:text-white">{data?.index_status.indexed || 0} / {data?.index_status.total || 0}</span>
+          </div>
+          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
+            <div className="bg-gradient-to-r from-indigo-500 to-violet-500 h-3 rounded-full transition-all" style={{ width: `${indexPct}%` }} />
+          </div>
+          <p className="text-xs text-gray-400">{indexPct.toFixed(1)}% des images sont indexées et prêtes pour la recherche CBIR.</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Category Distribution */}
+        <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-6 shadow-sm">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Répartition par catégorie</h2>
+          {catBarData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={catBarData} layout="vertical" margin={{ left: 10 }}>
+                <XAxis type="number" tick={{ fontSize: 10 }} />
+                <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 10 }} />
+                <Tooltip formatter={(value) => [String(value)]} />
+                <Bar dataKey="images" radius={[0, 4, 4, 0]}>
+                  {catBarData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          ) : <p className="text-gray-400 text-sm py-8 text-center">Aucune donnée. Importez le dataset GHIM-10K.</p>}
+        </div>
+
+        {/* Category Pie */}
+        <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-6 shadow-sm">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Distribution (camembert)</h2>
+          {data?.category_distribution && data.category_distribution.length > 0 ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie data={data.category_distribution} dataKey="image_count" nameKey="category_name" cx="50%" cy="50%" outerRadius={100} label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`} labelLine={false} fontSize={9}>
+                  {data.category_distribution.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : <p className="text-gray-400 text-sm py-8 text-center">Aucune donnée disponible.</p>}
+        </div>
+      </div>
+
+      {/* Recent Activity */}
+      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-6 shadow-sm">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+          <Clock className="w-5 h-5 text-indigo-500" /> Activité de recherche récente
+        </h2>
+        {data?.recent_activity && data.recent_activity.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-200 dark:border-gray-800">
+                  <th className="text-left py-2 px-3 text-gray-500 font-medium">ID</th>
+                  <th className="text-left py-2 px-3 text-gray-500 font-medium">Type</th>
+                  <th className="text-left py-2 px-3 text-gray-500 font-medium">Résultats</th>
+                  <th className="text-left py-2 px-3 text-gray-500 font-medium">Durée</th>
+                  <th className="text-left py-2 px-3 text-gray-500 font-medium">Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.recent_activity.map(a => (
+                  <tr key={a.id} className="border-b border-gray-100 dark:border-gray-800">
+                    <td className="py-2 px-3 font-mono text-gray-700 dark:text-gray-300">#{a.id}</td>
+                    <td className="py-2 px-3">
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 font-medium">{a.search_type}</span>
+                    </td>
+                    <td className="py-2 px-3 text-gray-700 dark:text-gray-300">{a.result_count}</td>
+                    <td className="py-2 px-3 text-gray-500">{formatDuration(a.duration_ms)}</td>
+                    <td className="py-2 px-3 text-gray-500">{formatDate(a.created_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : <p className="text-gray-400 text-sm text-center py-6">Aucune recherche effectuée pour le moment.</p>}
+      </div>
+
+      {/* Methodology Note */}
+      <div className="bg-gradient-to-r from-indigo-50 to-violet-50 dark:from-indigo-950/50 dark:to-violet-950/50 rounded-xl border border-indigo-200 dark:border-indigo-800 p-6">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+          <Info className="w-5 h-5 text-indigo-500" /> Méthodologie d'évaluation
+        </h3>
+        <div className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
+          <p>
+            Ce système utilise la méthode <strong>Re-weighting Type-1</strong> pour le retour de pertinence (relevance feedback) en CBIR.
+          </p>
+          <p>Les métriques d'évaluation sont :</p>
+          <ul className="list-disc list-inside space-y-1 text-gray-600 dark:text-gray-400">
+            <li><strong>Précision@K</strong> — proportion d'images pertinentes parmi les K résultats retournés</li>
+            <li><strong>Rappel@K</strong> — proportion d'images pertinentes retrouvées par rapport à l'ensemble des images pertinentes</li>
+          </ul>
+          <p className="text-xs text-gray-500 italic mt-2">
+            La pertinence est déterminée par l'appartenance à la même catégorie que l'image requête dans le dataset GHIM-10K.
+            Les résultats réels sont mesurés après l'importation du dataset et l'exécution des recherches.
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}

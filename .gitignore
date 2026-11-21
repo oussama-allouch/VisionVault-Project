@@ -1,0 +1,57 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.so
+.Python
+env/
+venv/
+.venv/
+*.egg-info/
+*.egg
+.pytest_cache/
+
+# Flask & SQLite
+instance/
+*.db
+*.sqlite
+*.sqlite3
+
+# Data (not versioned — GHIM-10K downloaded separately)
+data/GHIM-10K/
+data/uploads/*
+!data/uploads/.gitkeep
+data/thumbnails/*
+!data/thumbnails/.gitkeep
+data/index/*
+!data/index/.gitkeep
+
+# Node / Frontend
+node_modules/
+frontend/dist/
+frontend/node_modules/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment & Secrets
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+
+# Build artifacts
+*.tsbuildinfo
