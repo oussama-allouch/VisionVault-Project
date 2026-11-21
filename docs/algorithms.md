@@ -93,8 +93,8 @@ Les couleurs dominantes sont extraites par clustering K-Means dans l'espace RGB.
 
 **Algorithme :**
 1. Reformatage de l'image en matrice $(N, 3)$ de pixels RGB
-2. Application de K-Means avec `sklearn.cluster.KMeans(n_clusters=5, random_state=42)`
-3. Tri des clusters par fréquence décroissante
+2. K-Means sur au plus 5 000 pixels échantillonnés avec la graine 42. Le nombre de clusters est limité au nombre de couleurs distinctes.
+3. Tri par fréquence décroissante, puis par centroïde RVB en cas d’égalité. Les slots absents sont complétés de zéros.
 4. Pour chaque cluster : extraction du centroïde RGB et du pourcentage
 
 **Vecteur de sortie :** Pour chaque couleur dominante $k$ :
@@ -118,7 +118,7 @@ $$P_{d,\theta}(i, j) = \#\{((r_1, c_1), (r_2, c_2)) : I(r_1, c_1) = i,\ I(r_2, c
 **Paramètres :**
 - Distances : $d = [1]$
 - Angles : $\theta = [0°, 45°, 90°, 135°]$ soit $[0, \frac{\pi}{4}, \frac{\pi}{2}, \frac{3\pi}{4}]$
-- Niveaux de gris : $L = 64$ (quantification)
+- Niveaux de gris : $L = 64$. Un gris entier $g$ est quantifié par $\lfloor 64g/256 \rfloor$. La matrice est symétrique et normalisée.
 
 **Implémentation :** `skimage.feature.graycomatrix()`
 
@@ -131,7 +131,7 @@ Les propriétés sont calculées via `skimage.feature.graycoprops()` puis moyenn
 | **Contraste** | $\sum_{i,j} (i-j)^2 \cdot P(i,j)$ |
 | **Corrélation** | $\sum_{i,j} \frac{(i - \mu_i)(j - \mu_j) \cdot P(i,j)}{\sigma_i \cdot \sigma_j}$ |
 | **Énergie** | $\sqrt{\sum_{i,j} P(i,j)^2}$ |
-| **Homogénéité** | $\sum_{i,j} \frac{P(i,j)}{1 + |i-j|}$ |
+| **Homogénéité** | $\sum_{i,j} \frac{P(i,j)}{1 + (i-j)^2}$ |
 | **Dissimilarité** | $\sum_{i,j} |i-j| \cdot P(i,j)$ |
 | **ASM** | $\sum_{i,j} P(i,j)^2$ |
 
@@ -207,9 +207,9 @@ $$x'_i = \frac{x_i - \min_i}{\max_i - \min_i}$$
 où $\min_i$ et $\max_i$ sont les valeurs minimale et maximale de la composante $i$ sur l'ensemble du dataset.
 
 **Points critiques :**
-- Le scaler est **ajusté une seule fois** sur l'ensemble du dataset lors de l'indexation
-- Les images requêtes sont normalisées avec le **même scaler** (jamais réajusté)
-- Le scaler est sauvegardé sur disque avec l'index (via `joblib`)
+- Le scaler est ajusté sur les images de l’instantané à chaque construction ou mise à jour de l’index.
+- Une requête est transformée avec les mêmes coefficients, sans nouvel ajustement. Un fichier externe peut sortir de l’intervalle.
+- L’échelle et le décalage sont sauvegardés avec les vecteurs bruts dans `features.npz`.
 
 ---
 
@@ -274,7 +274,7 @@ Entrée: résultats courants, images pertinentes R, images non-pertinentes NR
 5. Calculer σ_rel,i pour chaque composante i sur les |R| images pertinentes
    - Si |R| < 2 : σ_rel,i = 0 → w_i = (ε + σ_Nr,i) / ε (poids potentiellement élevés)
 6. Calculer les nouveaux poids : w_i^(k+1) = (ε + σ_Nr,i) / (ε + σ_rel,i)
-7. Vérifier : tous les poids doivent être finis et positifs (remplacer NaN/Inf par 1.0)
+7. Rejeter les vecteurs ou poids non finis. Employer l’écart-type de population (ddof=0).
 8. Calculer le nouveau vecteur requête : Q_new = mean(vecteurs pertinents)
 9. Rechercher avec la nouvelle requête et les nouveaux poids (Équation 3)
 10. Retourner les nouveaux résultats triés par distance croissante
