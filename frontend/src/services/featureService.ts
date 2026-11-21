@@ -3,7 +3,7 @@ import api from './api'
 export const featureService = {
   async getAll(imageId: number) {
     const res = await api.get(`/images/${imageId}/features`)
-    return res.data
+    return res.data.features
   },
   async getColorHistogram(imageId: number) {
     const res = await api.get(`/images/${imageId}/color-histogram`)

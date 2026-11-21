@@ -10,7 +10,7 @@ function CategoryNode({ cat, onRefresh }: { cat: Category; onRefresh: () => void
   const [name, setName] = useState(cat.name)
 
   const handleSave = async () => {
-    if (!name.trim()) return
+    if (!name.trim() || name.trim() === cat.name) { setEditing(false); return }
     try { await categoryService.update(cat.id, name.trim()); toast.success('Catégorie renommée.'); setEditing(false); onRefresh() }
     catch { toast.error('Erreur.') }
   }
@@ -25,21 +25,21 @@ function CategoryNode({ cat, onRefresh }: { cat: Category; onRefresh: () => void
     <div>
       <div className="flex items-center gap-2 group py-1.5 px-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800">
         {cat.children && cat.children.length > 0 ? (
-          <button onClick={() => setExpanded(!expanded)} className="text-gray-400">
+          <button aria-label={`Afficher ${cat.name}`} aria-expanded={expanded} onClick={() => setExpanded(!expanded)} className="text-gray-400">
             {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
           </button>
         ) : <span className="w-4" />}
         <FolderOpen className="w-4 h-4 text-indigo-500" />
         {editing ? (
-          <input value={name} onChange={e => setName(e.target.value)} onBlur={handleSave} onKeyDown={e => e.key === 'Enter' && handleSave()}
+          <input value={name} onChange={e => setName(e.target.value)} aria-label={`Nouveau nom de ${cat.name}`} onKeyDown={e => e.key === 'Enter' && handleSave()}
             className="flex-1 px-2 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white" autoFocus />
         ) : (
           <span className="flex-1 text-sm text-gray-700 dark:text-gray-300">{cat.name}</span>
         )}
         <span className="text-xs text-gray-400 flex items-center gap-1"><Image className="w-3 h-3" />{cat.image_count ?? 0}</span>
         <div className="opacity-0 group-hover:opacity-100 flex gap-1 transition-opacity">
-          <button onClick={() => { setEditing(true); setName(cat.name) }} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded"><Edit2 className="w-3.5 h-3.5 text-gray-500" /></button>
-          <button onClick={handleDelete} className="p-1 hover:bg-red-50 dark:hover:bg-red-950 rounded"><Trash2 className="w-3.5 h-3.5 text-red-500" /></button>
+          <button aria-label={`Renommer ${cat.name}`} onClick={() => { setEditing(true); setName(cat.name) }} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded"><Edit2 className="w-3.5 h-3.5 text-gray-500" /></button>
+          <button aria-label={`Supprimer ${cat.name}`} onClick={handleDelete} className="p-1 hover:bg-red-50 dark:hover:bg-red-950 rounded"><Trash2 className="w-3.5 h-3.5 text-red-500" /></button>
         </div>
       </div>
       {expanded && cat.children && cat.children.length > 0 && (
@@ -57,7 +57,7 @@ export default function CategoriesPage() {
   const [newName, setNewName] = useState('')
   const [parentId, setParentId] = useState<number | undefined>()
 
-  const fetch = () => { setLoading(true); categoryService.list().then(setCategories).catch(() => {}).finally(() => setLoading(false)) }
+  const fetch = () => { categoryService.list().then(setCategories).catch(() => {}).finally(() => setLoading(false)) }
   useEffect(fetch, [])
 
   const flatCats: Category[] = []
@@ -80,7 +80,7 @@ export default function CategoriesPage() {
       <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4 flex gap-3">
         <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Nouvelle catégorie..." onKeyDown={e => e.key === 'Enter' && handleCreate()}
           className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white" />
-        <select value={parentId ?? ''} onChange={e => setParentId(e.target.value ? Number(e.target.value) : undefined)}
+        <select aria-label="Catégorie parente" value={parentId ?? ''} onChange={e => setParentId(e.target.value ? Number(e.target.value) : undefined)}
           className="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white">
           <option value="">Racine</option>
           {flatCats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}

@@ -8,6 +8,7 @@ Output dimension: 10
 
 import numpy as np
 import cv2
+from .image_input import read_bgr
 from skimage.feature import local_binary_pattern
 
 
@@ -38,10 +39,7 @@ def extract_lbp_features(image_path, P=8, R=1, method='uniform'):
         'lbp_image'  : np.ndarray (the LBP-transformed image)
         'params'     : dict
     """
-    img = cv2.imread(image_path)
-    if img is None:
-        raise ValueError(f"Cannot read image: {image_path}")
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    gray = cv2.cvtColor(read_bgr(image_path), cv2.COLOR_BGR2GRAY)
 
     # Compute LBP
     lbp_image = local_binary_pattern(gray, P, R, method=method)

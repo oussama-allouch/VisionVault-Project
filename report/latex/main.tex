@@ -1,0 +1,65 @@
+\documentclass[11pt,a4paper]{article}
+\input{metadata}
+\input{preamble}
+\hypersetup{
+  pdftitle={VisionVault – Gestion et recherche d'images par le contenu},
+  pdfauthor={\etudianteun, \etudiantdeux, \etudianttrois},
+  pdfsubject={Mini-projet 1, Multimedia Mining, Groupe G11}
+}
+\begin{document}
+\begin{titlepage}
+  \centering
+  % Logos officiels publiés dans l’en-tête du site de la FST de Tanger.
+  % https://fstt.uae.ac.ma/wp-content/uploads/2023/03/logo-uae-2048x593.png
+  % https://fstt.uae.ac.ma/wp-content/uploads/2023/03/fst-2048x766.png
+  \makebox[\textwidth][s]{%
+    \raisebox{-0.5\height}{\includegraphics[width=0.42\textwidth]{logo-uae.png}}%
+    \hfill
+    \raisebox{-0.5\height}{\includegraphics[width=0.42\textwidth]{logo-fst-tanger.png}}%
+  }\par
+  \vspace{11mm}
+  {\large\bfseries\universite\par}
+  \vspace{3mm}
+  {\large\faculte\par}
+  \vspace{7mm}
+  {\formation\par}
+  {\semestre\par}
+  \vfill
+  {\large\sffamily\color{marine}\miniprojet\enspace·\enspace\modulecours\par}
+  \vspace{8mm}
+  {\fontsize{36}{42}\selectfont\color{marine}\bfseries\projet\par}
+  \vspace{5mm}
+  {\Large Gestion et recherche d'images par le contenu\par}
+  \vspace{2mm}
+  {\large Retour de pertinence \methode\par}
+  \vfill
+  {\large\bfseries \groupe\par}
+  \vspace{7mm}
+  \begin{minipage}[t]{0.43\textwidth}
+    \raggedright
+    \textbf{Réalisé par}\par
+    \etudianteun\par
+    \etudiantdeux\par
+    \etudianttrois\par
+  \end{minipage}%
+  \hspace{0.11\textwidth}%
+  \begin{minipage}[t]{0.28\textwidth}
+    \raggedright
+    \textbf{Encadrant}\par
+    \encadrant\par
+  \end{minipage}\par
+  \vfill
+  Année universitaire \annee\par
+\end{titlepage}
+
+\pagenumbering{roman}
+\tableofcontents
+\clearpage
+\pagenumbering{arabic}
+\input{sections/introduction}
+\input{sections/galerie}
+\input{sections/recherche}
+\input{sections/evaluation}
+\input{sections/conclusion}
+\printbibliography[heading=bibintoc,title={Références bibliographiques}]
+\end{document}

@@ -1,59 +1,33 @@
 #!/usr/bin/env python3
-"""CLI script to build the CBIR feature index for all images.
+"""Build and verify the persisted index for the configured SQLite database."""
 
-Usage:
-    cd backend
-    python scripts/build_index.py
-"""
-
+import json
 import sys
-import os
-import time
+from pathlib import Path
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app import create_app
+from app.cbir.indexer import FeatureIndex
+from app.cbir.search_engine import sync_index
+from app.models.image import Image
 
-app = create_app()
 
-with app.app_context():
-    from app.models.image import Image
-    from app.cbir.indexer import FeatureIndex
-    from app.extensions import db
+def main():
+    with create_app().app_context():
+        index, seconds = sync_index(force=True)
+        reloaded = FeatureIndex(index.index_folder)
+        reloaded.load()
+        indexed_ids = [i for (i,) in Image.query.with_entities(Image.id)
+                       .filter_by(is_indexed=True).order_by(Image.id)]
+        if indexed_ids != reloaded.image_ids:
+            raise RuntimeError('Incohérence entre SQLite et l’index.')
+        print(json.dumps({'database_images': Image.query.count(), 'indexed': len(indexed_ids),
+                          'failed_ids': index.failed_ids, 'duration_seconds': seconds,
+                          'extraction_seconds': index.extraction_seconds,
+                          'storage_bytes': index.path.stat().st_size, 'reload_verified': True}, indent=2))
+        return int(not indexed_ids or bool(index.failed_ids))
 
-    index_folder = app.config['INDEX_FOLDER']
-    print(f"[VisionVault] Construction de l'index CBIR")
-    print(f"  Dossier index : {index_folder}")
-    print()
 
-    images = Image.query.all()
-    image_paths_and_ids = [
-        (img.stored_path, img.id)
-        for img in images
-        if os.path.exists(img.stored_path)
-    ]
-
-    total = len(image_paths_and_ids)
-    print(f"  Images à indexer : {total}")
-    if total == 0:
-        print("  ERREUR : Aucune image trouvée. Importez d'abord le dataset.")
-        print("    python scripts/import_dataset.py")
-        sys.exit(1)
-
-    print(f"  Extraction des descripteurs (93 dimensions)...")
-    print(f"  Cela peut prendre plusieurs minutes pour {total} images...\n")
-
-    start = time.time()
-    index = FeatureIndex(index_folder)
-    index.build(image_paths_and_ids)
-    duration = time.time() - start
-
-    # Mark all as indexed
-    Image.query.update({'is_indexed': True})
-    db.session.commit()
-
-    print(f"\n  ✓ Index construit en {duration:.1f} secondes")
-    print(f"  Images indexées : {len(index.image_ids)}")
-    print(f"  Taille matrice  : {index.normalized_matrix.shape}")
-    print(f"  Fichiers sauvegardés dans {index_folder}/")
-    print("  ✓ Prêt pour la recherche CBIR.")
+if __name__ == '__main__':
+    sys.exit(main())

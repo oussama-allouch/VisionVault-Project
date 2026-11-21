@@ -9,8 +9,8 @@ Tests all individual descriptors and the unified 93-dimensional vector:
 - LBP Texture (10-dim)
 """
 
-import os
-import glob
+from pathlib import Path
+from app.config import Config
 import pytest
 import numpy as np
 
@@ -27,11 +27,11 @@ from app.cbir.feature_extractor import extract_features, extract_features_with_d
 @pytest.fixture(scope="module")
 def sample_image():
     """Find an image from the GHIM-10K dataset for testing."""
-    pattern = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data", "GHIM-10K", "*", "*.jpg"))
-    files = glob.glob(pattern)
+    root = Path(Config.DATASET_PATH)
+    files = sorted(root.glob('*.jpg')) + sorted(root.glob('*/*.jpg'))
     if not files:
-        pytest.skip("No dataset images found in data/GHIM-10K")
-    return files[0]
+        pytest.skip('GHIM-10K indisponible dans DATASET_PATH')
+    return str(files[0])
 
 
 def test_color_histogram(sample_image):

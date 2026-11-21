@@ -1,0 +1,186 @@
+\section{Tâche 1 — Gestion de la galerie et descripteurs visuels}
+
+\subsection{Architecture de l'application}
+Le frontend React et TypeScript envoie des requêtes HTTP à l'API Python via le proxy Vite. Flask reçoit les requêtes et Flask-RESTful associe les routes aux ressources \cite{flaskrestful}. SQLite conserve les comptes, les catégories, les métadonnées des images et les sessions de recherche. Les originaux et dérivés sont servis depuis le disque. Les caractéristiques numériques et les paramètres de normalisation sont enregistrés dans un index NumPy séparé.
+
+\begin{figure}[ht]
+  \centering
+  \begin{tikzpicture}[
+      node distance=6mm and 13mm,
+      bloc/.style={draw=marine!38,fill=marine!5,rounded corners=1.5pt,
+        minimum height=11mm,text width=34mm,align=center,font=\small},
+      flux/.style={-{Latex[length=2mm]},draw=marine!75,semithick}]
+    \node[bloc,text width=44mm] (ui) {Navigateur\\React et TypeScript};
+    \node[bloc,text width=44mm,right=of ui] (api) {API Python\\Flask et Flask-RESTful};
+    \node[bloc,below=12mm of api] (index) {Index NumPy\\Vecteurs et normalisation};
+    \node[bloc,left=of index] (db) {SQLite\\Métadonnées};
+    \node[bloc,right=of index] (images) {Système de fichiers\\Originaux et dérivés};
+    \draw[flux,<->] (ui) -- node[above,font=\scriptsize]{HTTP} (api);
+    \coordinate (bus) at ([yshift=-5.5mm]api.south);
+    \draw[draw=marine!75,semithick] (api.south) -- (bus);
+    \draw[flux] (bus) -- (index.north);
+    \draw[flux] (bus) -| (db.north);
+    \draw[flux] (bus) -| (images.north);
+  \end{tikzpicture}
+  \caption{Organisation de l'application en exécution locale.}
+  \label{fig:architecture}
+\end{figure}
+
+Comme le montre la figure~\ref{fig:architecture}, les fichiers images et l'index ont des rôles différents. Le fichier sert à l'affichage, au téléchargement et à l'extraction de caractéristiques. L'index contient les vecteurs qui évitent de retraiter toutes les images à chaque recherche. Après un changement de la galerie, le serveur réconcilie l'index avec les identifiants encore présents en base.
+
+\clearpage
+\subsection{Authentification et gestion de la galerie}
+L'utilisateur s'authentifie avec son adresse et son mot de passe. Le serveur vérifie l'empreinte du mot de passe et délivre des jetons d'accès et de rafraîchissement. Les routes de galerie, de recherche et de lecture des médias exigent une authentification. Le formulaire, puis les actions accessibles sur une image, figurent dans la figure~\ref{fig:connexion-fiche}.
+
+\begin{figure}[ht]
+  \centering
+  \begin{subfigure}[t]{0.33\linewidth}
+    \centering
+    \demopanel{\linewidth}{connexion.png}
+    \caption{Formulaire de connexion.}
+  \end{subfigure}\hfill
+  \begin{subfigure}[t]{0.64\linewidth}
+    \centering
+    \demopanel{\linewidth}{fiche-image.png}
+    \caption{Fiche d'une photographie et actions individuelles.}
+  \end{subfigure}
+  \caption{Accès à la galerie et consultation d'une image dans l'application.}
+  \label{fig:connexion-fiche}
+\end{figure}
+
+La vue de la galerie permet la recherche par nom et le filtrage par catégorie. La fiche indique les dimensions et l'origine du fichier. Elle permet de télécharger l'original ou de supprimer l'image. Le scénario Playwright a vérifié que les octets du téléchargement individuel étaient identiques à ceux du fichier téléversé. Il a aussi vérifié qu'un compte déconnecté ne pouvait plus accéder aux opérations protégées.
+
+\paragraph{Traitement des fichiers.}
+Le serveur vérifie le contenu des fichiers téléversés et génère des miniatures pour la grille. Une nouvelle image reçoit un identifiant propre. Lors d'une suppression, elle est retirée du catalogue et de l'index. Pour un fichier de la collection de référence, la suppression de l'entrée dans la galerie préserve le fichier du corpus sur disque.
+
+\clearpage
+\paragraph{Actions par lot et classement.}
+L'utilisateur peut téléverser un fichier ou une sélection de fichiers. Le serveur indique le résultat pour chaque élément du lot. Dans la galerie, la sélection active deux actions, la suppression et le téléchargement sous forme d'archive ZIP. Le scénario de validation a exercé les deux actions et comparé le contenu du ZIP aux fichiers d'origine.
+
+Une catégorie peut avoir une catégorie parente. L'utilisateur peut ainsi créer des sous-catégories et déplacer des images dans l'arborescence. Le service refuse une modification qui rendrait une catégorie descendante d'elle-même. La figure~\ref{fig:gestion-lots} montre la sélection groupée et la relation parent-enfant observées pendant la démonstration.
+
+\begin{figure}[ht]
+  \centering
+  \demopanel{0.76\linewidth}{galerie-lot.png}
+  \par\smallskip
+  \begin{subfigure}[t]{0.47\linewidth}
+    \centering
+    \demopanel{\linewidth}{televersement.png}
+    \caption{Résultat d'un téléversement multiple.}
+  \end{subfigure}\hfill
+  \begin{subfigure}[t]{0.50\linewidth}
+    \centering
+    \demopanel{\linewidth}{categories.png}
+    \caption{Catégorie de démonstration et sous-catégorie.}
+  \end{subfigure}
+  \caption{Au-dessus, deux fichiers sélectionnés avec les actions de téléchargement ZIP et de suppression. En dessous, contrôle du lot et organisation des images.}
+  \label{fig:gestion-lots}
+\end{figure}
+
+Les captures du rapport sont des cadrages de l'application réellement exécutée, réalisés automatiquement avec Playwright. Les téléversements et déplacements visibles ici appartiennent à la démonstration fonctionnelle. L'évaluation de la recherche a utilisé séparément le catalogue indexé décrit en section~\ref{sec:corpus}.
+
+\clearpage
+\subsection{Transformations d'images}
+Le recadrage s'effectue en traçant un rectangle sur l'image ou en renseignant ses coordonnées. Le serveur valide que le rectangle est contenu dans l'original, puis extrait la zone sélectionnée. Le changement d'échelle peut préserver les proportions. Dans ce cas, l'image est inscrite dans les dimensions demandées en appliquant le même facteur aux deux axes.
+
+\begin{figure}[ht]
+  \centering
+  \demopanel{0.57\linewidth}{selection-crop.png}
+  \par\smallskip
+  \demopanel{0.96\linewidth}{transformations.jpg}
+  \caption{Sélection d'un rectangle dans l'éditeur et fichiers téléchargés. Original GHIM-10K \texttt{0\_1.jpg} à gauche, recadrage au centre et redimensionnement avec conservation des proportions à droite.}
+  \label{fig:transformations}
+\end{figure}
+
+Le résultat est enregistré avec un nouvel identifiant et un lien vers l'image source. Dans la figure~\ref{fig:transformations}, l'original mesure \(400\times300\) pixels, le recadrage \(208\times168\) pixels et le redimensionnement \(220\times165\) pixels. L'essai a vérifié que les dérivés devenaient consultables et indexables et que le fichier original conservait les mêmes octets.
+
+\clearpage
+\subsection{Descripteurs de couleur}
+\paragraph{Histogrammes.}
+L'application convertit les pixels dans l'espace HSV et construit un histogramme à 16 classes pour chacun des canaux teinte, saturation et valeur. OpenCV code la teinte sur \([0,180[\) et les deux autres canaux sur \([0,256[\) pour la représentation utilisée \cite{opencv}. Pour \(n\) pixels et une classe \(b\), la fréquence du canal \(c\) vaut
+\begin{equation}
+  h_c(b)=\frac{1}{n}\sum_{t=1}^{n}\mathbf{1}[x_{t,c}\in b].
+  \label{eq:hsv}
+\end{equation}
+Les fréquences totalisent un sur chaque canal. La concaténation fournit \(3\times16=48\) composantes.
+
+\paragraph{Moments.}
+Pour chaque canal, VisionVault calcule la moyenne \(\mu_c\), l'écart-type de population \(s_c\) et l'asymétrie \(\gamma_c\).
+\begin{equation}
+  \mu_c=\frac1n\sum_t x_{t,c},\qquad
+  s_c=\sqrt{\frac1n\sum_t(x_{t,c}-\mu_c)^2},\qquad
+  \gamma_c=\frac1n\sum_t\left(\frac{x_{t,c}-\mu_c}{s_c}\right)^3 .
+  \label{eq:moments}
+\end{equation}
+L'asymétrie est fixée à zéro si \(s_c=0\). Les trois moments des trois canaux donnent neuf valeurs.
+
+\paragraph{Couleurs dominantes.}
+L'algorithme \(k\)-moyennes regroupe au plus \num{5000} pixels échantillonnés en RVB. La graine est fixée à 42. Jusqu'à cinq groupes sont classés par fréquence. Un groupe est décrit par \((R/255,G/255,B/255,p)\), où \(p\) est sa proportion parmi les pixels échantillonnés. Les positions manquantes sont remplies de zéros dans le vecteur de 20 valeurs. La figure~\ref{fig:couleurs} illustre les trois restitutions.
+
+\begin{figure}[ht]
+  \centering
+  \demopanel{0.84\linewidth}{histogramme-hsv.png}\par\smallskip
+  \begin{subfigure}[t]{0.49\linewidth}
+    \centering
+    \demopanel{\linewidth}{moments-hsv.png}
+    \caption{Moments par canal.}
+  \end{subfigure}\hfill
+  \begin{subfigure}[t]{0.49\linewidth}
+    \centering
+    \demopanel{\linewidth}{dominantes.png}
+    \caption{Palette et fréquences.}
+  \end{subfigure}
+  \caption{Descripteurs de couleur affichés pour la photographie \texttt{0\_1.jpg}. L'extrait du haut montre les canaux teinte et saturation.}
+  \label{fig:couleurs}
+\end{figure}
+
+\clearpage
+\subsection{Descripteurs de texture}
+\paragraph{Matrice de co-occurrence.}
+L'image en niveaux de gris est quantifiée sur 64 niveaux. À partir d'une intensité entière \(g\) codée sur huit bits, le niveau retenu est \(\lfloor 64 g/256\rfloor\). Pour chacun des angles \(0^\circ\), \(45^\circ\), \(90^\circ\) et \(135^\circ\), l'application compte les paires de pixels à distance un. La matrice est symétrisée et normalisée. On note \(p_{ij}\) la fréquence de la paire de niveaux \(i,j\) pour une orientation.
+
+\begin{align}
+  \mathrm{Contraste} &= \sum_{i,j}(i-j)^2p_{ij}, &
+  \mathrm{Dissimilarité} &= \sum_{i,j}|i-j|p_{ij},
+  \label{eq:glcm-contraste}\\
+  \mathrm{Homogénéité} &= \sum_{i,j}\frac{p_{ij}}{1+(i-j)^2}, &
+  \mathrm{ASM} &= \sum_{i,j}p_{ij}^{\,2},
+  \label{eq:glcm-homogeneite}\\
+  \mathrm{Énergie} &= \sqrt{\mathrm{ASM}}, &
+  \mathrm{Corrélation} &= \sum_{i,j}
+     \frac{(i-\mu_i)(j-\mu_j)p_{ij}}{\sigma_i\sigma_j}.
+  \label{eq:glcm-energie}
+\end{align}
+Dans la corrélation, \(\mu_i,\mu_j\) et \(\sigma_i,\sigma_j\) désignent les moments des distributions marginales. Le calcul est confié à \texttt{graycoprops}, qui renvoie \(1\) dans son cas dégénéré de variance marginale nulle. Les six valeurs sont moyennées sur les quatre orientations \cite{skimage}.
+
+\paragraph{Motifs binaires locaux.}
+Le LBP compare le niveau central \(g_c\) à huit voisins \(g_p\) sur un cercle de rayon un pixel. Le code de base s'écrit
+\begin{equation}
+  \operatorname{LBP}_{8,1}=\sum_{p=0}^{7} 2^p\mathbf{1}[g_p\geq g_c].
+  \label{eq:lbp}
+\end{equation}
+L'implémentation utilise le mode \texttt{uniform}. Pour les motifs dont la séquence circulaire présente au plus deux transitions binaires, le code est remplacé par le nombre de bits actifs, de 0 à 8. Les autres motifs rejoignent la dixième classe. L'histogramme final est normalisé par le nombre de codes. Les deux vues de texture sont illustrées à la figure~\ref{fig:textures}.
+
+\begin{figure}[ht]
+  \centering
+  \begin{subfigure}[t]{0.49\linewidth}
+    \centering
+    \demopanel{\linewidth}{glcm.png}
+    \caption{Propriétés GLCM.}
+  \end{subfigure}\hfill
+  \begin{subfigure}[t]{0.49\linewidth}
+    \centering
+    \demopanel{\linewidth}{lbp.png}
+    \caption{Fréquences LBP.}
+  \end{subfigure}
+  \caption{Caractéristiques de texture affichées pour \texttt{0\_1.jpg}.}
+  \label{fig:textures}
+\end{figure}
+
+\subsection{API REST}
+Sous le préfixe \texttt{/api/v1}, les ressources d'extraction renvoient du JSON.
+\begin{itemize}[leftmargin=*]
+  \item \texttt{GET /images/\{id\}/features} renvoie les cinq descripteurs et le vecteur pour une image.
+  \item \texttt{POST /images/features/batch} prend une liste \texttt{ids} et renvoie un résultat ou une erreur par image.
+\end{itemize}
+Cinq routes spécialisées donnent aussi accès à une seule famille. L'interface utilise ces résultats pour les histogrammes, tableaux et palettes.

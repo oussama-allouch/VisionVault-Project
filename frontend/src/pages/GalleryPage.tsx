@@ -1,3 +1,4 @@
+import ProtectedImage from '../components/ProtectedImage'
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { Search, Filter, Trash2, Download, Grid3x3, ChevronLeft, ChevronRight, Eye, Scan, Edit } from 'lucide-react'
@@ -6,6 +7,7 @@ import { categoryService } from '../services/categoryService'
 import type { ImageData, Category } from '../types'
 import { formatDate, formatFileSize } from '../utils/format'
 import toast from 'react-hot-toast'
+import { saveDownload } from '../utils/download'
 
 export default function GalleryPage() {
   const [images, setImages] = useState<ImageData[]>([])
@@ -27,6 +29,7 @@ export default function GalleryPage() {
     try {
       const data = await imageService.list({ page, per_page: perPage, category_id: categoryId, search: search || undefined, sort_by: sortBy, sort_order: sortOrder })
       setImages(data.images); setTotal(data.total); setPages(data.pages)
+      if (page > Math.max(1, data.pages)) setPage(Math.max(1, data.pages))
     } catch { toast.error('Erreur de chargement des images.') }
     finally { setLoading(false) }
   }, [page, categoryId, search, sortBy, sortOrder])
@@ -43,16 +46,18 @@ export default function GalleryPage() {
 
   const toggleSelect = (id: number) => {
     const s = new Set(selected)
-    s.has(id) ? s.delete(id) : s.add(id)
+    if (s.has(id)) s.delete(id)
+    else if (s.size < 100) s.add(id)
     setSelected(s)
   }
-  const selectAll = () => { selected.size === images.length ? setSelected(new Set()) : setSelected(new Set(images.map(i => i.id))) }
+  const allSelected = images.length > 0 && images.every(image => selected.has(image.id))
+  const selectAll = () => setSelected(allSelected ? new Set() : new Set(images.map(image => image.id)))
 
   const handleDelete = async (ids: number[]) => {
-    if (!confirm(`Supprimer ${ids.length} image(s) ?`)) return
+    if (!window.confirm(`Supprimer ${ids.length} image(s) ?`)) return
     try {
-      await imageService.bulkDelete(ids)
-      toast.success(`${ids.length} image(s) supprimée(s).`)
+      const deleted = ids.length === 1 ? (await imageService.remove(ids[0]), 1) : (await imageService.bulkDelete(ids)).deleted
+      toast.success(`${deleted} image(s) supprimée(s).`)
       setSelected(new Set())
       setViewImage(null)
       fetchImages()
@@ -63,11 +68,18 @@ export default function GalleryPage() {
 
   const handleDownload = async (ids: number[]) => {
     try {
-      const blob = await imageService.bulkDownload(ids)
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a'); a.href = url; a.download = 'images.zip'; a.click()
-      URL.revokeObjectURL(url)
+      saveDownload(await imageService.bulkDownload(ids), 'images.zip')
     } catch { toast.error('Erreur de téléchargement.') }
+  }
+
+  const moveImage = async (image: ImageData, value: string) => {
+    try {
+      setViewImage(await imageService.move(image.id, value ? Number(value) : null))
+      const tree = await categoryService.list()
+      setCategories(tree)
+      fetchImages()
+      toast.success('Catégorie mise à jour.')
+    } catch { toast.error('Erreur de déplacement.') }
   }
 
   return (
@@ -130,13 +142,13 @@ export default function GalleryPage() {
             <div key={img.id} className={`group relative bg-white dark:bg-gray-900 rounded-xl border overflow-hidden shadow-sm hover:shadow-md transition-all cursor-pointer ${selected.has(img.id) ? 'border-indigo-500 ring-2 ring-indigo-200' : 'border-gray-200 dark:border-gray-800'}`}>
               <div className="aspect-square bg-gray-100 dark:bg-gray-800" onClick={() => setViewImage(img)}>
                 {img.thumbnail_url ? (
-                  <img src={img.thumbnail_url} alt={img.filename} className="w-full h-full object-cover" loading="lazy" />
+                  <ProtectedImage src={img.thumbnail_url} alt={img.filename} className="w-full h-full object-cover" loading="lazy" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-gray-400"><Grid3x3 className="w-8 h-8" /></div>
                 )}
               </div>
               {/* Checkbox */}
-              <input type="checkbox" checked={selected.has(img.id)} onChange={() => toggleSelect(img.id)}
+              <input type="checkbox" aria-label={`Sélectionner ${img.filename}`} checked={selected.has(img.id)} onChange={() => toggleSelect(img.id)}
                 className="absolute top-2 left-2 w-4 h-4 rounded border-gray-300 text-indigo-600 opacity-0 group-hover:opacity-100 checked:opacity-100 transition-opacity" />
               {/* Overlay Actions */}
               <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -157,10 +169,10 @@ export default function GalleryPage() {
       {/* Pagination */}
       {pages > 1 && (
         <div className="flex justify-center items-center gap-2">
-          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-30 text-gray-700 dark:text-gray-300"><ChevronLeft className="w-5 h-5" /></button>
+          <button onClick={() => setPage(p => Math.max(1, p - 1))} aria-label="Page précédente" disabled={page === 1} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-30 text-gray-700 dark:text-gray-300"><ChevronLeft className="w-5 h-5" /></button>
           <span className="text-sm text-gray-600 dark:text-gray-400">Page {page} / {pages}</span>
-          <button onClick={() => setPage(p => Math.min(pages, p + 1))} disabled={page === pages} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-30 text-gray-700 dark:text-gray-300"><ChevronRight className="w-5 h-5" /></button>
-          <button onClick={selectAll} className="text-xs text-indigo-600 ml-4 hover:underline">{selected.size === images.length ? 'Désélectionner tout' : 'Tout sélectionner'}</button>
+          <button onClick={() => setPage(p => Math.min(pages, p + 1))} aria-label="Page suivante" disabled={page === pages} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-30 text-gray-700 dark:text-gray-300"><ChevronRight className="w-5 h-5" /></button>
+          <button onClick={selectAll} className="text-xs text-indigo-600 ml-4 hover:underline">{allSelected ? 'Désélectionner tout' : 'Tout sélectionner'}</button>
         </div>
       )}
 
@@ -170,7 +182,7 @@ export default function GalleryPage() {
           <div className="bg-white dark:bg-gray-900 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-auto shadow-2xl" onClick={e => e.stopPropagation()}>
             <div className="grid md:grid-cols-2">
               <div className="bg-gray-100 dark:bg-gray-800 flex items-center justify-center min-h-64">
-                {viewImage.image_url ? <img src={viewImage.image_url} alt={viewImage.filename} className="max-w-full max-h-[70vh] object-contain" /> : <Grid3x3 className="w-16 h-16 text-gray-400" />}
+                {viewImage.image_url ? <ProtectedImage src={viewImage.image_url} alt={viewImage.filename} className="max-w-full max-h-[70vh] object-contain" /> : <Grid3x3 className="w-16 h-16 text-gray-400" />}
               </div>
               <div className="p-6 space-y-4">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{viewImage.filename}</h3>
@@ -191,6 +203,14 @@ export default function GalleryPage() {
                   <Link to={`/search?query=${viewImage.id}`} className="flex-1 py-2 text-center rounded-lg bg-violet-50 dark:bg-violet-950 text-violet-700 dark:text-violet-300 text-sm font-medium hover:bg-violet-100">Recherche CBIR</Link>
                   <Link to={`/editor/${viewImage.id}`} className="flex-1 py-2 text-center rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm font-medium hover:bg-gray-200">Éditer</Link>
                 </div>
+                <label className="block text-sm text-gray-500">Déplacer vers
+                  <select className="ml-3 border rounded p-1 dark:bg-gray-800" value={viewImage.category_id ?? ''}
+                    onChange={event => moveImage(viewImage, event.target.value)}>
+                    <option value="">Sans catégorie</option>
+                    {flatCats.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
+                  </select>
+                </label>
+                <button onClick={() => imageService.download(viewImage.id).then(blob => saveDownload(blob, viewImage.filename)).catch(() => toast.error('Erreur de téléchargement.'))} className="w-full py-2 rounded-lg border text-sm">Télécharger l’original</button>
                 <button onClick={() => handleDelete([viewImage.id])} className="w-full py-2 text-center rounded-lg border border-red-200 text-red-600 text-sm hover:bg-red-50 transition">Supprimer</button>
                 <button onClick={() => setViewImage(null)} className="w-full py-2 text-center rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 text-sm hover:bg-gray-50 dark:hover:bg-gray-800 transition">Fermer</button>
               </div>

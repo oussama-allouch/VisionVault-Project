@@ -22,7 +22,7 @@ export const imageService = {
     files.forEach(f => form.append('files', f))
     if (categoryId) form.append('category_id', String(categoryId))
     const res = await api.post('/images/bulk-upload', form)
-    return res.data
+    return res.data as { uploads: { filename: string; status: number; result: { message?: string } }[] }
   },
   async remove(id: number) {
     await api.delete(`/images/${id}`)

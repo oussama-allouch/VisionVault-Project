@@ -1,0 +1,116 @@
+\clearpage
+\section{Tâche 2 — Recherche d'images par le contenu}
+
+\subsection{Jeu de données GHIM-10K}
+\label{sec:corpus}
+Le sujet désigne GHIM-10K sur Kaggle. La page et le lien de téléchargement ont renvoyé HTTP~404 lors de la vérification du 21 novembre 2026. L'expérience utilise donc la distribution publique du collecteur Guang-Hai Liu \cite{ghim}. Cette distribution correspond au benchmark de \num{10000} images en 20 classes décrit par Chu et Liu \cite[section~4.1]{chu2020}. L'identité fichier à fichier avec la version Kaggle reste invérifiable. Le dépôt de la distribution utilisée ne déclare aucune licence de redistribution des photographies.
+
+La classe est encodée dans le préfixe du nom, de \texttt{00} à \texttt{19} dans l'interface. Chaque classe comprend 500 fichiers avant déduplication. Le chargeur lit le format effectif malgré l'extension \texttt{.jpg} commune. Il a trouvé \num{7000} JPEG, \num{3000} PNG et aucun fichier illisible. Deux fichiers ayant une empreinte SHA-256 déjà rencontrée ont été écartés. Les classes~03 et~17 comptent ainsi 499 images indexées chacune, les 18 autres en comptent 500.
+
+Le serveur extrait les vecteurs des \num{9998} images distinctes et enregistre le tableau dans un index NumPy. La construction complète a pris \qty{258.51}{\second} dans l'environnement Linux de validation. Le fichier \texttt{features.npz} mesure \num{7521496} octets. La relecture a confirmé l'association entre les identifiants de l'index et ceux du catalogue SQLite.
+
+\subsection{Représentation des images}
+Les descripteurs sont concaténés dans l'ordre du tableau~\ref{tab:vecteur}. Les histogrammes, les moments et les propriétés de texture ont des amplitudes différentes. VisionVault ajuste donc \texttt{MinMaxScaler} sur les colonnes de l'index, puis conserve les coefficients de la transformation \cite{sklearn}. Pour une colonne d'étendue non nulle,
+\begin{equation}
+  z_j=\frac{x_j-m_j}{M_j-m_j},
+  \qquad m_j=\min_i x_{ij},\quad M_j=\max_i x_{ij}.
+  \label{eq:minmax}
+\end{equation}
+Les colonnes constantes suivent la convention de \texttt{MinMaxScaler}. Les requêtes et les candidats sont comparés dans le même espace. Le serveur recharge les coefficients avec l'index et les réajuste lorsque le contenu indexé change.
+
+\begin{table}[ht]
+  \centering
+  \begin{tabular}{@{}lrr@{}}
+    \toprule
+    Famille & Dimensions & Positions dans le vecteur \\
+    \midrule
+    Histogrammes HSV & 48 & 1--48 \\
+    Moments de couleur & 9 & 49--57 \\
+    Couleurs dominantes & 20 & 58--77 \\
+    GLCM & 6 & 78--83 \\
+    LBP & 10 & 84--93 \\
+    \midrule
+    Total & 93 & \\
+    \bottomrule
+  \end{tabular}
+  \caption{Composition du vecteur de caractéristiques.}
+  \label{tab:vecteur}
+\end{table}
+
+\clearpage
+\subsection{Recherche simple}
+L'utilisateur choisit une image de la galerie et le nombre \(K\) de résultats. Le serveur lit le vecteur de la requête dans l'index lorsqu'il existe. Sinon, il extrait ses caractéristiques puis applique la transformation mémorisée. La distance est calculée pour chaque candidat. L'identifiant de l'image requête est exclu et les \(K\) premières images sont renvoyées par distance croissante.
+
+\begin{equation}
+  d_0(q,x)=\sqrt{\frac{1}{93}\sum_{j=1}^{93}(q_j-x_j)^2}.
+  \label{eq:distance-base}
+\end{equation}
+L'équation~\eqref{eq:distance-base} est la distance euclidienne normalisée obtenue lorsque tous les poids valent un. Elle produit le même ordre qu'une distance euclidienne ordinaire. La catégorie du candidat est affichée dans l'interface et sert à évaluer l'expérience, tandis que le classement repose sur le vecteur de caractéristiques.
+
+\begin{figure}[ht]
+  \centering
+  \demopanel{0.99\linewidth}{recherche-simple.png}
+  \caption{Extrait du classement initial à \(K=10\) pour une requête de la galerie. La capture Playwright montre l'image requête et les premiers candidats.}
+  \label{fig:recherche-simple}
+\end{figure}
+
+La figure~\ref{fig:recherche-simple} montre une recherche avant tout retour de pertinence. Les résultats affichent leur distance et proposent un marquage. La recherche simple alimente la session avec le premier classement, auquel le retour de pertinence se réfère.
+
+\clearpage
+\subsection{Retour de pertinence — Re-weighting Type-1}
+\label{sec:type1}
+La section III-C et l'équation (5) de l'article de Renuka Devi SM définissent la mise à jour des poids \cite[p.~551]{renuka2016}. À l'itération \(t\), \(S_t\) est l'ensemble des \(N_t\) images renvoyées et \(R_t\subseteq S_t\) celui des résultats marqués pertinents. Les poids initiaux sont \(w^{(0)}_j=1\). Les écarts-types sont calculés colonne par colonne, avec le diviseur \(n\) de l'écart-type de population.
+\begin{equation}
+  \sigma_j(A)=\sqrt{\frac1{|A|}\sum_{x\in A}(x_j-\overline{x}_{A,j})^2},
+  \qquad
+  \overline{x}_{A,j}=\frac1{|A|}\sum_{x\in A}x_j.
+  \label{eq:dispersion}
+\end{equation}
+Lorsque \(R_t\) contient au moins une image, VisionVault applique
+\begin{equation}
+  w^{(t+1)}_j
+    =\frac{\epsilon+\sigma_j(S_t)}{\epsilon+\sigma_j(R_t)},
+  \qquad \epsilon=\num{0.0001}.
+  \label{eq:type1}
+\end{equation}
+Le numérateur utilise \emph{toutes} les images du classement courant, y compris celles qui sont marquées négatives ou laissées neutres. Le dénominateur mesure la dispersion des seules images pertinentes. Une composante peu variable parmi les positifs et plus variable dans l'ensemble du classement reçoit un poids plus élevé. Une sélection d'un seul positif donne une dispersion nulle au dénominateur. Le lissage empêche alors la division par zéro.
+
+Le tableau~1 de l'article spécifie le centroïde des positifs comme nouvelle requête \cite[p.~554]{renuka2016}. L'équation (3) du même article définit la distance euclidienne pondérée \cite[p.~551]{renuka2016}.
+\begin{align}
+  q^{(t+1)} &= \frac1{|R_t|}\sum_{x\in R_t}x ,
+    \label{eq:centroide}\\
+  d_w(q,x) &= \sqrt{\frac{\sum_{j=1}^{93} w_j(q_j-x_j)^2}
+                             {\sum_{j=1}^{93}w_j}} .
+    \label{eq:distance-ponderee}
+\end{align}
+Le serveur conserve le dernier classement de la session et vérifie que les identifiants marqués en proviennent. En l'absence de positif, l'API demande à l'utilisateur de modifier sa sélection. Lorsqu'un tour aboutit, un nouveau Top-\(K\) est calculé dans l'index complet, en excluant encore l'image requête d'origine.
+
+\paragraph{Déroulement d'un tour.}
+\begin{enumerate}[leftmargin=*,label=\arabic*.]
+  \item Lire \(S_t\), vérifier les identifiants et constituer \(R_t\).
+  \item Calculer les écarts-types sur \(S_t\) et \(R_t\), puis les poids avec l'équation~\eqref{eq:type1}.
+  \item Former le centroïde avec l'équation~\eqref{eq:centroide}.
+  \item Recalculer les distances avec l'équation~\eqref{eq:distance-ponderee}, renvoyer le Top-\(K\) et enregistrer l'itération.
+\end{enumerate}
+
+\clearpage
+\paragraph{Exemple numérique.}
+Pour vérifier le calcul à la main, on considère un espace jouet à deux dimensions. Trois images ont pour vecteurs \(A=(0,2)\), \(B=(2,2)\) et \(C=(4,8)\). L'utilisateur sélectionne \(A,B\). Les dispersions de population sont \((\sqrt{8/3},\sqrt{8})\) pour \(S_t\) et \((1,0)\) pour \(R_t\). En posant \(\epsilon=\num{0.0001}\), on obtient
+\begin{equation}
+  w^{(t+1)}
+  =\left(\frac{\epsilon+\sqrt{8/3}}{\epsilon+1},
+         \frac{\epsilon+\sqrt{8}}{\epsilon}\right)
+  \simeq (\num{1.63293},\,\num{28285.27125}),
+  \qquad q^{(t+1)}=(1,2).
+  \label{eq:exemple}
+\end{equation}
+Si l'on remplace 93 par 2 dans l'équation~\eqref{eq:distance-ponderee}, on trouve \(d_w(q,A)=d_w(q,B)\simeq\num{0.00760}\) et \(d_w(q,C)\simeq\num{5.99987}\). Le second axe domine car ses deux positifs ont la même valeur alors que l'ensemble des résultats varie sur cet axe. Si tous les résultats étaient déclarés pertinents, les deux dispersions coïncideraient et les poids seraient tous égaux à un.
+
+\begin{figure}[ht]
+  \centering
+  \demopanel{0.96\linewidth}{retour-pertinence.png}
+  \caption{Retour de pertinence dans l'application. Le panneau affiche les poids par famille et l'évolution des mesures de la session.}
+  \label{fig:retour-pertinence}
+\end{figure}
+
+Dans l'application, le calcul porte sur les 93 composantes. La figure~\ref{fig:retour-pertinence} regroupe leurs poids par famille pour faciliter la lecture. L'exemple numérique explique pourquoi une sélection peu diverse peut entraîner des poids élevés et un classement très sensible aux images retenues.

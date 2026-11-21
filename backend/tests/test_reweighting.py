@@ -146,7 +146,7 @@ def test_apply_feedback_pipeline():
             self.data = {i: rng.rand(dim) for i in range(1, 21)}
         def get_features(self, img_id):
             return self.data[img_id]
-        def search(self, query, weights=None, k=25):
+        def search(self, query, weights=None, k=25, exclude_ids=None):
             return [(i, 0.5) for i in range(1, k + 1)]
 
     index = MockIndex()

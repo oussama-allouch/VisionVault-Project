@@ -9,6 +9,7 @@ Output dimension: 6
 
 import numpy as np
 import cv2
+from .image_input import read_bgr
 from skimage.feature import graycomatrix, graycoprops
 
 
@@ -46,16 +47,10 @@ def extract_glcm_features(image_path, distances=None, angles=None, levels=64):
         angles = [0, np.pi / 4, np.pi / 2, 3 * np.pi / 4]
 
     # Read & convert to grayscale
-    img = cv2.imread(image_path)
-    if img is None:
-        raise ValueError(f"Cannot read image: {image_path}")
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    gray = cv2.cvtColor(read_bgr(image_path), cv2.COLOR_BGR2GRAY)
 
     # Quantize to [0, levels-1]
-    if gray.max() > 0:
-        quantized = (gray / gray.max() * (levels - 1)).astype(np.uint8)
-    else:
-        quantized = gray.astype(np.uint8)
+    quantized = (gray.astype(np.uint16) * levels // 256).astype(np.uint8)
 
     # Compute GLCM
     glcm = graycomatrix(

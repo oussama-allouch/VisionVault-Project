@@ -70,7 +70,7 @@ export default function Sidebar() {
               <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{user.email}</p>
               <p className="text-xs text-gray-500 dark:text-gray-400">{user.role}</p>
             </div>
-            <button onClick={handleLogout} className="text-gray-400 hover:text-red-500 transition-colors">
+            <button aria-label="Se déconnecter" onClick={handleLogout} className="text-gray-400 hover:text-red-500 transition-colors">
               <LogOut className="w-4 h-4" />
             </button>
           </div>

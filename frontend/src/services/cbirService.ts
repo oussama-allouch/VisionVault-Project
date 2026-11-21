@@ -10,6 +10,8 @@ export const cbirService = {
       results: SearchResult[]
       total_results: number
       duration_ms: number
+      precision_at_k: number | null
+      recall_at_k: number | null
     }
   },
   async searchUpload(file: File, numResults = 25) {

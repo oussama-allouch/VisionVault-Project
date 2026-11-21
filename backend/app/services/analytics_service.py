@@ -1,19 +1,17 @@
 """Analytics service – overview stats and CBIR evaluation metrics."""
 
-from app.extensions import db
 from app.models.image import Image
 from app.models.category import Category
-from app.models.user import User
 from app.models.search import SearchSession, FeedbackIteration, SearchHistory
 
 
 class AnalyticsService:
     @staticmethod
-    def get_overview():
+    def get_overview(user_id):
         total_images = Image.query.count()
         total_categories = Category.query.count()
         user_uploads = Image.query.filter_by(source_type='upload').count()
-        total_searches = SearchHistory.query.count()
+        total_searches = SearchHistory.query.filter_by(user_id=user_id).count()
         indexed_count = Image.query.filter_by(is_indexed=True).count()
 
         # Category distribution
@@ -30,7 +28,7 @@ class AnalyticsService:
         category_distribution.sort(key=lambda x: x['image_count'], reverse=True)
 
         # Recent activity (last 10 searches)
-        recent = SearchHistory.query.order_by(SearchHistory.created_at.desc()).limit(10).all()
+        recent = SearchHistory.query.filter_by(user_id=user_id).order_by(SearchHistory.created_at.desc()).limit(10).all()
         recent_activity = [h.to_dict() for h in recent]
 
         return {
@@ -47,11 +45,12 @@ class AnalyticsService:
         }
 
     @staticmethod
-    def get_evaluation():
+    def get_evaluation(user_id):
         """Return aggregate CBIR precision/recall metrics from feedback iterations."""
-        iterations = FeedbackIteration.query.filter(
+        iterations = FeedbackIteration.query.join(SearchSession).filter(
+            SearchSession.user_id == user_id,
             FeedbackIteration.precision_at_k.isnot(None)
-        ).all()
+        ).order_by(FeedbackIteration.id).all()
 
         if not iterations:
             return {

@@ -1,6 +1,7 @@
+import ProtectedImage from '../components/ProtectedImage'
 import { useState, useEffect, useCallback } from 'react'
-import { useSearchParams, Link } from 'react-router-dom'
-import { Search, Upload, Image, ChevronLeft, ChevronRight, Check, X, RotateCcw, Zap, BarChart3, Info, Target, Loader2, Scan } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
+import { Search, Image, ChevronLeft, ChevronRight, Check, X, RotateCcw, Zap, BarChart3, Info, Target, Loader2, Scan } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, Legend } from 'recharts'
 import { cbirService } from '../services/cbirService'
 import { imageService } from '../services/imageService'
@@ -87,6 +88,10 @@ export default function SearchPage() {
       setResults(data.results)
       setDuration(data.duration_ms)
       setIteration(0)
+      setHistory([{
+        iteration: 0, precisionAtK: data.precision_at_k, recallAtK: data.recall_at_k,
+        relevantCount: 0, nonRelevantCount: 0, weights: null, duration: data.duration_ms,
+      }])
       // Initialize all judgments as neutral
       const j: Record<number, 'relevant' | 'non_relevant' | 'neutral'> = {}
       data.results.forEach((r: SearchResult) => { j[r.image_id] = 'neutral' })
@@ -206,7 +211,7 @@ export default function SearchPage() {
           {/* Query image preview */}
           <div className="w-40 h-40 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-700 flex items-center justify-center overflow-hidden bg-gray-50 dark:bg-gray-800 shrink-0">
             {queryImage?.thumbnail_url ? (
-              <img src={queryImage.thumbnail_url} alt={queryImage.filename} className="w-full h-full object-cover" />
+              <ProtectedImage src={queryImage.thumbnail_url} alt={queryImage.filename} className="w-full h-full object-cover" />
             ) : (
               <div className="text-center p-4">
                 <Image className="w-8 h-8 text-gray-400 mx-auto mb-2" />
@@ -230,6 +235,7 @@ export default function SearchPage() {
               </button>
               <select value={numResults} onChange={e => setNumResults(Number(e.target.value))}
                 className="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white">
+                <option value={5}>5 résultats</option>
                 <option value={10}>10 résultats</option>
                 <option value={20}>20 résultats</option>
                 <option value={25}>25 résultats</option>
@@ -286,7 +292,7 @@ export default function SearchPage() {
                 : judgment === 'non_relevant' ? 'border-red-500 ring-2 ring-red-200 dark:ring-red-900'
                 : 'border-gray-200 dark:border-gray-800'
               return (
-                <div key={r.image_id} className={`relative bg-white dark:bg-gray-900 rounded-xl border overflow-hidden shadow-sm hover:shadow-md transition-all ${borderColor}`}>
+                <div key={r.image_id} data-result-id={r.image_id} className={`relative bg-white dark:bg-gray-900 rounded-xl border overflow-hidden shadow-sm hover:shadow-md transition-all ${borderColor}`}>
                   {/* Rank badge */}
                   <div className="absolute top-2 left-2 z-10 w-7 h-7 rounded-full bg-black/60 text-white text-xs font-bold flex items-center justify-center">
                     {r.rank}
@@ -300,7 +306,7 @@ export default function SearchPage() {
                   {/* Image */}
                   <div className="aspect-square bg-gray-100 dark:bg-gray-800 cursor-pointer" onClick={() => toggleJudgment(r.image_id)}>
                     {r.image.thumbnail_url ? (
-                      <img src={r.image.thumbnail_url} alt={r.image.filename} className="w-full h-full object-cover" loading="lazy" />
+                      <ProtectedImage src={r.image.thumbnail_url} alt={r.image.filename} className="w-full h-full object-cover" loading="lazy" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center"><Image className="w-8 h-8 text-gray-400" /></div>
                     )}
@@ -316,12 +322,12 @@ export default function SearchPage() {
                     </div>
                     {/* Judgment toggle */}
                     <div className="flex gap-1 pt-1">
-                      <button onClick={() => setJudgments(p => ({ ...p, [r.image_id]: 'relevant' }))}
-                        className={`flex-1 py-1 rounded text-[10px] font-medium transition ${judgment === 'relevant' ? 'bg-green-500 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-500 hover:bg-green-100 dark:hover:bg-green-950'}`}>
+                      <button onClick={() => setJudgments(p => ({ ...p, [r.image_id]: p[r.image_id] === 'relevant' ? 'neutral' : 'relevant' }))}
+                        aria-pressed={judgment === 'relevant'} className={`flex-1 py-1 rounded text-[10px] font-medium transition ${judgment === 'relevant' ? 'bg-green-500 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-500 hover:bg-green-100 dark:hover:bg-green-950'}`}>
                         ✓ Pertinent
                       </button>
-                      <button onClick={() => setJudgments(p => ({ ...p, [r.image_id]: 'non_relevant' }))}
-                        className={`flex-1 py-1 rounded text-[10px] font-medium transition ${judgment === 'non_relevant' ? 'bg-red-500 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-500 hover:bg-red-100 dark:hover:bg-red-950'}`}>
+                      <button onClick={() => setJudgments(p => ({ ...p, [r.image_id]: p[r.image_id] === 'non_relevant' ? 'neutral' : 'non_relevant' }))}
+                        aria-pressed={judgment === 'non_relevant'} className={`flex-1 py-1 rounded text-[10px] font-medium transition ${judgment === 'non_relevant' ? 'bg-red-500 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-500 hover:bg-red-100 dark:hover:bg-red-950'}`}>
                         ✗ Non pertinent
                       </button>
                     </div>
@@ -370,7 +376,7 @@ export default function SearchPage() {
                 <LineChart data={historyChartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis dataKey="iteration" tick={{ fontSize: 11 }} />
-                  <YAxis unit="%" tick={{ fontSize: 11 }} />
+                  <YAxis unit="%" domain={[0, 100]} tick={{ fontSize: 11 }} />
                   <Tooltip formatter={(value) => [`${value}%`]} />
                   <Legend />
                   <Line type="monotone" dataKey="Précision@K" stroke="#6366f1" strokeWidth={2} dot={{ r: 4 }} />
@@ -462,7 +468,7 @@ export default function SearchPage() {
                   {pickerImages.map(img => (
                     <button key={img.id} onClick={() => { setQueryImage(img); setShowPicker(false) }}
                       className={`aspect-square rounded-lg overflow-hidden border-2 transition hover:border-indigo-500 ${queryImage?.id === img.id ? 'border-indigo-500 ring-2 ring-indigo-200' : 'border-transparent'}`}>
-                      {img.thumbnail_url ? <img src={img.thumbnail_url} alt={img.filename} className="w-full h-full object-cover" loading="lazy" /> : <div className="w-full h-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center"><Image className="w-6 h-6 text-gray-400" /></div>}
+                      {img.thumbnail_url ? <ProtectedImage src={img.thumbnail_url} alt={img.filename} className="w-full h-full object-cover" loading="lazy" /> : <div className="w-full h-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center"><Image className="w-6 h-6 text-gray-400" /></div>}
                     </button>
                   ))}
                 </div>

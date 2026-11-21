@@ -1,6 +1,8 @@
 """Flask application factory."""
 
 import os
+from secrets import token_urlsafe
+from threading import RLock
 from datetime import timedelta
 from flask import Flask
 from app.config import Config
@@ -11,6 +13,10 @@ from app.utils.errors import register_error_handlers
 def create_app(config_class=Config):
     flask_app = Flask(__name__)
     flask_app.config.from_object(config_class)
+    flask_app.extensions['visionvault_lock'] = RLock()
+    for key in ('SECRET_KEY', 'JWT_SECRET_KEY'):
+        if not flask_app.config.get(key) or flask_app.config[key].startswith('change-me'):
+            flask_app.config[key] = token_urlsafe(48)
 
     # JWT timedelta config — Config class already provides timedelta objects
     if not isinstance(flask_app.config.get('JWT_ACCESS_TOKEN_EXPIRES'), timedelta):

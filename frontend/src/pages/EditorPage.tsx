@@ -1,4 +1,6 @@
-import { useState, useEffect } from 'react'
+import ProtectedImage, { useProtectedImage } from '../components/ProtectedImage'
+import { useState, useEffect, useRef, type PointerEvent } from 'react'
+import { saveDownload } from '../utils/download'
 import { useParams, useNavigate } from 'react-router-dom'
 import { RotateCw, FlipHorizontal, FlipVertical, Crop, Maximize2, Save, Download, ArrowLeft, RefreshCw } from 'lucide-react'
 import { imageService } from '../services/imageService'
@@ -21,11 +23,41 @@ export default function EditorPage() {
   const [resizeH, setResizeH] = useState(0)
   const [keepAspect, setKeepAspect] = useState(true)
   const [result, setResult] = useState<ImageData | null>(null)
+  const originalUrl = useProtectedImage(image?.image_url)
+  const cropAnchor = useRef<{ x: number; y: number } | null>(null)
+
+  const cropPoint = (event: PointerEvent<HTMLDivElement>) => {
+    const bounds = event.currentTarget.getBoundingClientRect()
+    const width = image?.width ?? 1
+    const height = image?.height ?? 1
+    return {
+      x: Math.round(Math.min(1, Math.max(0, (event.clientX - bounds.left) / bounds.width)) * width),
+      y: Math.round(Math.min(1, Math.max(0, (event.clientY - bounds.top) / bounds.height)) * height),
+    }
+  }
+
+  const startCrop = (event: PointerEvent<HTMLDivElement>) => {
+    if (mode !== 'crop' || !originalUrl) return
+    event.currentTarget.setPointerCapture(event.pointerId)
+    cropAnchor.current = cropPoint(event)
+  }
+
+  const moveCrop = (event: PointerEvent<HTMLDivElement>) => {
+    const start = cropAnchor.current
+    if (!start) return
+    const end = cropPoint(event)
+    setCropX(Math.min(start.x, end.x))
+    setCropY(Math.min(start.y, end.y))
+    setCropW(Math.max(1, Math.abs(start.x - end.x)))
+    setCropH(Math.max(1, Math.abs(start.y - end.y)))
+  }
 
   useEffect(() => {
     if (!id) return
     imageService.get(Number(id)).then(img => {
       setImage(img); setResizeW(img.width || 400); setResizeH(img.height || 400)
+      setCropW(Math.min(img.width || 200, 200)); setCropH(Math.min(img.height || 200, 200))
+      setCropX(0); setCropY(0); setResult(null)
     }).catch(() => toast.error('Image introuvable.')).finally(() => setLoading(false))
   }, [id])
 
@@ -77,7 +109,18 @@ export default function EditorPage() {
         <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
           <div className="p-3 border-b border-gray-200 dark:border-gray-800 text-sm font-medium text-gray-700 dark:text-gray-300">Original</div>
           <div className="bg-gray-100 dark:bg-gray-800 flex items-center justify-center min-h-64 p-4">
-            {image.image_url && <img src={image.image_url} alt={image.filename} className="max-w-full max-h-96 object-contain" />}
+            {originalUrl && (
+              <div className={`relative max-w-full select-none ${mode === 'crop' ? 'cursor-crosshair touch-none' : ''}`}
+                data-testid="crop-surface" onPointerDown={startCrop} onPointerMove={moveCrop}
+                onPointerUp={() => { cropAnchor.current = null }} onPointerCancel={() => { cropAnchor.current = null }}>
+                <img src={originalUrl} alt={image.filename} draggable={false} className="block max-w-full max-h-96" />
+                {mode === 'crop' && image.width && image.height && (
+                  <div data-testid="crop-selection" className="pointer-events-none absolute border-2 border-white bg-indigo-400/20 outline outline-indigo-500"
+                    style={{ left: `${100 * cropX / image.width}%`, top: `${100 * cropY / image.height}%`,
+                      width: `${100 * cropW / image.width}%`, height: `${100 * cropH / image.height}%` }} />
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -85,7 +128,7 @@ export default function EditorPage() {
         <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
           <div className="p-3 border-b border-gray-200 dark:border-gray-800 text-sm font-medium text-gray-700 dark:text-gray-300">Résultat</div>
           <div className="bg-gray-100 dark:bg-gray-800 flex items-center justify-center min-h-64 p-4">
-            {result?.image_url ? <img src={result.image_url} alt="result" className="max-w-full max-h-96 object-contain" /> : <p className="text-gray-400 text-sm">Appliquez une transformation</p>}
+            {result?.image_url ? <ProtectedImage src={result.image_url} alt="result" className="max-w-full max-h-96 object-contain" /> : <p className="text-gray-400 text-sm">Appliquez une transformation</p>}
           </div>
         </div>
       </div>
@@ -106,8 +149,8 @@ export default function EditorPage() {
           <div className="flex flex-wrap gap-3 items-end">
             {[['X', cropX, setCropX], ['Y', cropY, setCropY], ['Largeur', cropW, setCropW], ['Hauteur', cropH, setCropH]].map(([label, val, setter]) => (
               <div key={label as string}>
-                <label className="text-xs text-gray-500">{label as string}</label>
-                <input type="number" value={val as number} onChange={e => (setter as (v: number) => void)(Number(e.target.value))}
+                <label htmlFor={`crop-${label}`} className="text-xs text-gray-500">{label as string}</label>
+                <input id={`crop-${label}`} type="number" value={val as number} onChange={e => (setter as (v: number) => void)(Number(e.target.value))}
                   className="w-24 px-2 py-1.5 rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white" />
               </div>
             ))}
@@ -118,13 +161,13 @@ export default function EditorPage() {
         {mode === 'resize' && (
           <div className="flex flex-wrap gap-3 items-end">
             <div>
-              <label className="text-xs text-gray-500">Largeur</label>
-              <input type="number" value={resizeW} onChange={e => setResizeW(Number(e.target.value))}
+              <label htmlFor="resize-width" className="text-xs text-gray-500">Largeur</label>
+              <input id="resize-width" type="number" value={resizeW} onChange={e => setResizeW(Number(e.target.value))}
                 className="w-24 px-2 py-1.5 rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white" />
             </div>
             <div>
-              <label className="text-xs text-gray-500">Hauteur</label>
-              <input type="number" value={resizeH} onChange={e => setResizeH(Number(e.target.value))}
+              <label htmlFor="resize-height" className="text-xs text-gray-500">Hauteur</label>
+              <input id="resize-height" type="number" value={resizeH} onChange={e => setResizeH(Number(e.target.value))}
                 className="w-24 px-2 py-1.5 rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white" />
             </div>
             <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
@@ -139,7 +182,7 @@ export default function EditorPage() {
       {result && (
         <div className="flex gap-3">
           <button onClick={() => navigate(`/gallery`)} className="px-4 py-2 rounded-lg bg-green-600 text-white text-sm font-medium hover:bg-green-700 flex items-center gap-2"><Save className="w-4 h-4" /> Voir dans la galerie</button>
-          <a href={result.image_url || '#'} download className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center gap-2"><Download className="w-4 h-4" /> Télécharger</a>
+          <button onClick={() => imageService.download(result.id).then(blob => saveDownload(blob, result.filename)).catch(() => toast.error('Erreur de téléchargement.'))} className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center gap-2"><Download className="w-4 h-4" /> Télécharger</button>
         </div>
       )}
     </div>

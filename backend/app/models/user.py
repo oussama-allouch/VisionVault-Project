@@ -31,3 +31,10 @@ class User(db.Model):
             'role': self.role,
             'created_at': self.created_at.isoformat(),
         }
+
+
+class RevokedLogin(db.Model):
+    """A revoked login is identified by the family shared by its JWTs."""
+    __tablename__ = 'revoked_logins'
+
+    family = db.Column(db.String(36), primary_key=True)

@@ -48,13 +48,13 @@ export default function LoginPage() {
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+              <input aria-label="Email" type="email" value={email} onChange={e => setEmail(e.target.value)}
                 className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition"
-                placeholder="demo@visionvault.com" />
+                placeholder="nom@exemple.fr" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Mot de passe</label>
-              <input type="password" value={password} onChange={e => setPassword(e.target.value)}
+              <input aria-label="Mot de passe" type="password" value={password} onChange={e => setPassword(e.target.value)}
                 className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition"
                 placeholder="••••••••" />
             </div>
@@ -66,12 +66,9 @@ export default function LoginPage() {
             {loading ? 'Connexion...' : 'Se connecter'}
           </button>
 
-          <div className="text-center">
-            <p className="text-xs text-gray-400">Compte démo : demo@visionvault.com / demo2024</p>
-          </div>
         </form>
 
-        <p className="text-center text-xs text-gray-500 mt-6">Mini-projet 1 — Groupe G11 — AISD Master S3</p>
+        <p className="text-center text-xs text-gray-500 mt-6">Mini-projet 1 — Groupe G11 — Master IASD S3</p>
       </div>
     </div>
   )
