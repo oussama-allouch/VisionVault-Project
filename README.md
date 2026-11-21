@@ -1,6 +1,8 @@
 # VisionVault
 
-Mini-projet 1 du groupe G11, Master Intelligence Artificielle et Sciences des Données (IASD), S3, année 2026–2027. Faculté des Sciences et Techniques de Tanger, Université Abdelmalek Essaâdi. Encadrant M'hamed AIT KBIR.
+Mini-projet 1 du groupe G11, Master Intelligence Artificielle et Sciences des Données (IASD), S3, année 2026–2027. Faculté des Sciences et Techniques de Tanger, Université Abdelmalek Essaâdi. Module Multimedia Mining. Encadrant M'hamed AIT KBIR.
+
+Réalisé par Youssef KHALOUFI, Oussama ALLOUCH et Lehoueimel YAHFDHOU MOHAMED.
 
 VisionVault permet de gérer une galerie authentifiée, d’organiser les images par catégories, de créer des dérivés et de rechercher des images similaires. React et Vite consomment une API Flask-RESTful. SQLite stocke les métadonnées. L’index NumPy et les fichiers images restent sur disque.
 
@@ -10,7 +12,7 @@ Python 3.11 ou 3.12 avec `venv` et pip, Node.js 22.12+ ou 24 LTS avec npm, Git, 
 
 ## Acquisition de GHIM-10K
 
-Décompresser le [jeu demandé sur Kaggle](https://www.kaggle.com/datasets/mcpython/ghim-10k), si disponible, et placer les images dans `data/GHIM-10K`, un sous-dossier par classe. Le protocole de validation utilise la [copie publiée par le collecteur](https://github.com/liuguanghai009/datasets/tree/09f0e4378f7a5ec78fe6be358680413fa1b9d9d8/GHIM-10K). Ce dépôt contient directement des fichiers `classe_numéro.jpg`, avec des classes de 0 à 19. Le chargeur accepte les deux structures.
+Décompresser le [jeu demandé sur Kaggle](https://www.kaggle.com/datasets/mcpython/ghim-10k), si disponible, et placer les images dans `data/GHIM-10K`, un sous-dossier par classe. La page et le téléchargement Kaggle ont répondu HTTP 404 lors de la validation. Le protocole utilise la [copie publiée par le collecteur](https://github.com/liuguanghai009/datasets/tree/09f0e4378f7a5ec78fe6be358680413fa1b9d9d8/GHIM-10K). Ce dépôt contient directement des fichiers `classe_numéro.jpg`, avec des classes de 0 à 19. Le chargeur accepte les deux structures. Le dépôt source ne déclare aucune licence de redistribution des photographies.
 
 Depuis la racine de VisionVault, pour obtenir la copie documentée dans un répertoire voisin :
 
@@ -86,7 +88,7 @@ L’évaluation nécessite une base dédiée au seul corpus GHIM-10K et utilise 
 
 Le vecteur contient 48 composantes d’histogrammes HSV, 9 moments HSV, 20 composantes de couleurs dominantes, 6 propriétés GLCM et 10 fréquences LBP. Le classement initial emploie des poids uniformes. Re-weighting Type-1 recalcule les poids à partir de tous les résultats et des seuls positifs, puis place la requête au centroïde des positifs.
 
-- Renuka Devi SM, « Reweighing Strategies for Relevance Feedback in CBIR », IJARCCE 5(11), novembre 2016, p. 549–555. [Article dans le dépôt](docs/references/Reweighing%20Strategies%20for%20Relevance%20%20Feedback%20in%20CBIR.pdf) · [DOI](https://doi.org/10.17148/IJARCCE.2016.511118).
+- Renuka Devi SM, « Reweighing Strategies for Relevance Feedback in CBIR », IJARCCE 5(11), novembre 2016, p. 549–555. [Article et DOI](https://doi.org/10.17148/IJARCCE.2016.511118).
 - [Algorithmes](docs/algorithms.md) · [Architecture](docs/architecture.md) · [API](docs/api.md) · [Guide utilisateur](docs/user-guide.md) · [Guide des données](docs/dataset-guide.md).
 
 ## Dépannage

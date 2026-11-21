@@ -1,0 +1,56 @@
+\usepackage{fontspec}
+\setmainfont{TeX Gyre Pagella}
+\setsansfont{TeX Gyre Heros}
+\usepackage[french]{babel}
+\usepackage{microtype}
+\usepackage[a4paper,top=23mm,bottom=23mm,left=24mm,right=24mm,
+  headheight=15pt,headsep=8mm,footskip=10mm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\graphicspath{{figures/}}
+\usepackage{booktabs}
+\usepackage{caption,subcaption}
+\usepackage{enumitem}
+\frenchsetup{StandardLists=true}
+\usepackage{xcolor}
+\usepackage{fancyhdr}
+\usepackage{tikz,pgfplots}
+\usetikzlibrary{arrows.meta,positioning}
+\pgfplotsset{compat=1.18}
+\usepackage{siunitx}
+\sisetup{locale=FR,group-minimum-digits=4}
+\usepackage{csquotes}
+\usepackage[backend=biber,style=numeric,sorting=none,giveninits=true,
+  maxbibnames=10,isbn=false]{biblatex}
+\addbibresource{references.bib}
+\usepackage{hyperref}
+\usepackage{xurl}
+
+\definecolor{marine}{HTML}{193454}
+\definecolor{grisclair}{HTML}{E7EBEF}
+\definecolor{legende}{HTML}{3B4858}
+\hypersetup{colorlinks=true,linkcolor=marine,citecolor=marine,urlcolor=marine,
+  bookmarksnumbered=true,pdfdisplaydoctitle=true,hypertexnames=false}
+\captionsetup{font=small,labelfont={bf,color=marine},textfont={color=legende},
+  margin=8pt}
+\captionsetup[subfigure]{font=small,labelformat=simple}
+\renewcommand\thesubfigure{(\alph{subfigure})}
+\addto\captionsfrench{\renewcommand{\tablename}{Tableau}}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{5.5pt plus 1pt minus 0.8pt}
+\setlist{nosep,topsep=5pt}
+\setlength{\textfloatsep}{11pt plus 2pt minus 2pt}
+\setlength{\intextsep}{10pt plus 2pt minus 2pt}
+\setlength{\emergencystretch}{1.7em}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\sffamily\color{marine}\projet}
+\fancyhead[R]{\small\sffamily\color{legende}\groupe\enspace·\enspace Master IASD}
+\fancyfoot[C]{\small\thepage}
+\renewcommand\headrulewidth{0.3pt}
+\setcounter{tocdepth}{2}
+\newcommand{\demopanel}[2]{%
+  \begingroup\setlength{\fboxsep}{0pt}\color{grisclair}%
+  \fbox{\includegraphics[width=\dimexpr #1-2\fboxrule\relax]{#2}}\endgroup}
